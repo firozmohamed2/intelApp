@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom YouTube Player</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .video-player {
+            width: 640px;
+            position: relative;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        iframe {
+            width: 100%;
+            height: 360px;
+            border-radius: 8px;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s;
+        }
+
+        .controls:hover {
+            background-color: rgba(0, 0, 0, 0.9);
+        }
+
+        .controls button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 18px;
+            margin-right: 10px;
+            transition: transform 0.2s;
+        }
+
+        .controls button:hover {
+            transform: scale(1.1);
+        }
+
+        .controls input[type="range"] {
+            width: 200px;
+            height: 5px;
+            background-color: #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+            outline: none;
+            margin-left: 10px;
+        }
+
+        .controls input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background-color: #4CAF50;
+            cursor: pointer;
+            border: 2px solid white;
+        }
+
+        .time-info {
+            display: flex;
+            align-items: center;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .time-info span {
+            margin: 0 5px;
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+        }
+
+        .volume-control input[type="range"] {
+            width: 100px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="video-player">
+        <!-- YouTube iframe -->
+        <iframe id="youtube-video" 
+        src="https://www.youtube.com/embed/mzexJPoXBCM?enablejsapi=1&rel=0&controls=0&modestbranding=1&iv_load_policy=3" 
+        frameborder="0" 
+        allow="autoplay; encrypted-media">
+    </iframe>
+    
+        <div class="controls">
+            <button id="play-pause"><i class="fas fa-play"></i></button>
+            <input type="range" id="seek-bar" min="0" max="100">
+            <div class="time-info">
+                <span id="current-time">00:00</span> / <span id="duration">00:00</span>
+            </div>
+            <div class="volume-control">
+                <button id="mute"><i class="fas fa-volume-up"></i></button>
+                <input type="range" id="volume-bar" min="0" max="100">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let player;
+        const playPauseBtn = document.getElementById('play-pause');
+        const seekBar = document.getElementById('seek-bar');
+        const currentTimeEl = document.getElementById('current-time');
+        const durationEl = document.getElementById('duration');
+        const muteBtn = document.getElementById('mute');
+        const volumeBar = document.getElementById('volume-bar');
+
+        // Load the YouTube IFrame API
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('youtube-video', {
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+
+        // When the player is ready, attach event listeners
+        function onPlayerReady(event) {
+            const duration = player.getDuration();
+            durationEl.textContent = formatTime(duration);
+
+            // Sync the play/pause button
+            playPauseBtn.addEventListener('click', () => {
+                if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+                    player.pauseVideo();
+                    playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+                } else {
+                    player.playVideo();
+                    playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                }
+            });
+
+            // Seek bar control
+            seekBar.addEventListener('input', () => {
+                const seekTo = (seekBar.value / 100) * player.getDuration();
+                player.seekTo(seekTo);
+            });
+
+            // Mute/unmute control
+            muteBtn.addEventListener('click', () => {
+                if (player.isMuted()) {
+                    player.unMute();
+                    muteBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+                    volumeBar.value = player.getVolume();
+                } else {
+                    player.mute();
+                    muteBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
+                    volumeBar.value = 0;
+                }
+            });
+
+            // Volume control
+            volumeBar.addEventListener('input', () => {
+                player.setVolume(volumeBar.value);
+                if (player.isMuted()) {
+                    player.unMute();
+                    muteBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+                }
+            });
+        }
+
+        // When the player's state changes, update the UI
+        function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.PLAYING) {
+                playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                updateProgress();
+            } else {
+                playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+            }
+        }
+
+        // Update the progress bar and time info
+        function updateProgress() {
+            setInterval(() => {
+                if (player && player.getPlayerState() === YT.PlayerState.PLAYING) {
+                    const currentTime = player.getCurrentTime();
+                    const duration = player.getDuration();
+                    currentTimeEl.textContent = formatTime(currentTime);
+                    seekBar.value = (currentTime / duration) * 100;
+                }
+            }, 1000);
+        }
+
+        // Format time in mm:ss
+        function formatTime(time) {
+            const minutes = Math.floor(time / 60);
+            const seconds = Math.floor(time % 60);
+            return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        }
+
+        // Load YouTube Iframe API dynamically
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    </script>
+</body>
+</html>

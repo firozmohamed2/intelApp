@@ -1,0 +1,212 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    flex-direction: column;
+}
+
+.video-player {
+    width: 640px;
+    position: relative;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px 8px 0px 0px;
+    overflow: hidden;
+}
+
+iframe {
+    width: 100%;
+    height: 360px;
+    border-radius: 8px;
+}
+
+.controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.3s;
+}
+
+.controls:hover {
+    background-color: rgba(0, 0, 0, 0.9);
+}
+
+.controls button {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 18px;
+    margin-right: 10px;
+    transition: transform 0.2s;
+}
+
+.controls button:hover {
+    transform: scale(1.1);
+}
+
+.controls input[type="range"] {
+    width: 200px;
+    height: 5px;
+    background-color: #ddd;
+    border-radius: 5px;
+    overflow: hidden;
+    outline: none;
+    margin-left: 10px;
+}
+
+.controls input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background-color: #4CAF50;
+    cursor: pointer;
+    border: 2px solid white;
+}
+
+.time-info {
+    display: flex;
+    align-items: center;
+    color: #fff;
+    font-size: 14px;
+}
+
+.time-info span {
+    margin: 0 5px;
+}
+
+.volume-control {
+    display: flex;
+    align-items: center;
+}
+
+.volume-control input[type="range"] {
+    width: 100px;
+    margin-left: 10px;
+}
+
+.container {
+display: flex;
+justify-content: center;
+width: 640px; /* Same width as video player */
+background-color: black;
+padding: 10px 0;
+border-radius: 0px 0px 10px 10px;
+}
+.options-container-4 {
+display: flex;
+justify-content: center;
+width: 640px; /* Same width as video player */
+background-color: black;
+padding: 10px 0;
+border-radius: 0px 0px 10px 10px;
+display:none;
+}
+
+.options-container-3 {
+display: flex;
+justify-content: center;
+width: 640px; /* Same width as video player */
+background-color: black;
+padding: 10px 0;
+border-radius: 0px 0px 10px 10px;
+display:none;
+}
+
+
+.options-container-2 {
+display: flex;
+justify-content: center;
+width: 640px; /* Same width as video player */
+background-color: black;
+padding: 10px 0;
+border-radius: 0px 0px 10px 10px;
+display: none;
+}
+
+.clarity-container{
+display: flex;
+justify-content: center;
+width: 640px; /* Same width as video player */
+background-color: black;
+padding: 10px 0;
+border-radius: 0px 0px 10px 10px;
+display: none;
+
+}
+
+
+.boolean-container{
+display: flex;
+justify-content: center;
+width: 640px; /* Same width as video player */
+background-color: black;
+padding: 10px 0;
+border-radius: 0px 0px 10px 10px;
+display: none;
+
+}
+
+
+.option-button {
+    width: 25px;
+    height: 25px;
+    margin: 0 15px;
+    background-color: #ffffff;
+    color: rgb(0, 0, 0);
+    border: none;
+    border-radius: 50%;
+    font-size: 14px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+    /* font-family: 'Open-sans',sans-serif; */
+}
+
+.clarity-button {
+    height: 35px;
+    width: 110px;
+    margin: 0 15px;
+    background-color: #ffffff;
+    color: rgb(0, 0, 0);
+    border: none;
+    border-radius: 5px;
+    font-size: 14px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.boolean-button {
+    height: 35px;
+    width: 70px;
+    margin: 0 15px;
+    background-color: #ffffff;
+    color: rgb(0, 0, 0);
+    border: none;
+    border-radius: 5px;
+    font-size: 14px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.option-button:hover {
+    transform: scale(1.2);
+}
