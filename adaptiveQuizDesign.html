@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Editable Adaptive Quiz Visualizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+
+    <style>
+      body {
+        font-family: "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 20px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        background: #f5f7fa;
+      }
+
+      #graph-container {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        height: 80vh;
+        overflow: auto;
+      }
+
+      #question-viewer {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        overflow-y: auto;
+        height: 80vh;
+      }
+
+      #mermaid-diagram {
+        width: 100%;
+        height: 100%;
+        min-height: 500px;
+      }
+
+      .question-card {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+        background: white;
+      }
+
+      .question-card.editing {
+        border: 2px solid #4361ee;
+        background: #f0f4ff;
+      }
+
+      .correct-path {
+        color: #48bb78;
+        font-weight: bold;
+      }
+
+      .wrong-path {
+        color: #f56565;
+        font-weight: bold;
+      }
+
+      button {
+        background: #4361ee;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-right: 10px;
+        margin-top: 10px;
+      }
+
+      button.secondary {
+        background: #6c757d;
+      }
+
+      button.danger {
+        background: #f56565;
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        padding: 8px;
+        margin: 5px 0 15px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+
+      textarea {
+        min-height: 60px;
+        resize: vertical;
+      }
+
+      .option-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+      }
+
+      .option-item input[type="radio"] {
+        width: auto;
+        margin-right: 10px;
+      }
+
+      .option-item input[type="text"] {
+        flex-grow: 1;
+      }
+
+      .add-option-btn {
+        background: #48bb78;
+        margin-top: 5px;
+      }
+
+      .controls {
+        margin-top: 20px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      #copy-quiz-btn {
+        background: #6c757d;
+        margin-top: 10px;
+      }
+      #status-message {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        display: none;
+      }
+      .status-success {
+        background: #d4edda;
+        color: #155724;
+      }
+      .status-error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+      .status-info {
+        background: #e7f5ff;
+        color: #1864ab;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="graph-container">
+      <h2>Quiz Flow Diagram</h2>
+      <div id="mermaid-diagram" class="mermaid"></div>
+    </div>
+
+    <div id="question-viewer">
+      <h2>Question Navigator</h2>
+      <div class="controls">
+        <button id="add-question-btn">Add New Question</button>
+        <button id="refresh-btn" class="secondary">Refresh Graph</button>
+        <button id="copy-quiz-btn">Copy</button>
+        <button id="upload-btn">Upload</button>
+        <input
+          type="text"
+          id="quiz-name"
+          placeholder="Enter quiz name (e.g., 'Math Quiz')"
+        />
+      </div>
+      <div id="status-message"></div>
+
+      <div id="questions-list"></div>
+    </div>
+
+    <script>
+      const firebaseConfig = {
+        apiKey: "AIzaSyA88fPkOvcI4QA9qD3ROpk-ay-V6ibQQlc",
+        authDomain: "my-application-7fd40.firebaseapp.com",
+        projectId: "my-application-7fd40",
+        storageBucket: "my-application-7fd40.appspot.com",
+        messagingSenderId: "269589994279",
+        appId: "1:269589994279:web:4c617a622c328a1224e702",
+        measurementId: "G-D8MD1J28GR",
+      };
+
+      // Initialize Firebase
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+      // Sample question data
+      let questions = {
+        q1: {
+          text: "What is 5 × 7?",
+          options: ["35", "42", "12"],
+          correctIndex: 0,
+          ifCorrect: "q3",
+          ifWrong: "q2",
+        },
+        q2: {
+          text: "What is 3 × 4?",
+          options: ["12", "7", "9"],
+          correctIndex: 0,
+          ifCorrect: "q1",
+          ifWrong: "q1",
+        },
+        q3: {
+          text: "What is 12 × 8?",
+          options: ["96", "84", "104"],
+          correctIndex: 0,
+          ifCorrect: "q5",
+          ifWrong: "q4",
+        },
+      };
+
+      // Generate Mermaid graph syntax
+      function generateMermaidSyntax() {
+        let syntax = "graph LR\n";
+
+        // Define styles
+        syntax +=
+          "    classDef correctPath stroke:#48bb78,stroke-width:2px,stroke-dasharray:0;\n";
+        syntax +=
+          "    classDef wrongPath stroke:#f56565,stroke-width:2px,stroke-dasharray:0;\n";
+
+        // Add nodes and edges
+        let edgeCount = 0;
+        for (const [id, question] of Object.entries(questions)) {
+          const shortText =
+            question.text.length > 15
+              ? question.text.substring(0, 15) + "..."
+              : question.text;
+
+          syntax += `    ${id}["${id}: ${shortText}"]\n`;
+
+          if (question.ifCorrect && questions[question.ifCorrect]) {
+            syntax += `    ${id} -->|Correct| ${question.ifCorrect}\n`;
+            syntax += `    linkStyle ${edgeCount} stroke:#48bb78\n`;
+            edgeCount++;
+          }
+          if (question.ifWrong && questions[question.ifWrong]) {
+            syntax += `    ${id} -->|Wrong| ${question.ifWrong}\n`;
+            syntax += `    linkStyle ${edgeCount} stroke:#f56565\n`;
+            edgeCount++;
+          }
+        }
+
+        return syntax;
+      }
+
+      // Initialize and render the diagram
+      async function renderGraph() {
+        try {
+          // Initialize Mermaid
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: "default",
+            flowchart: {
+              useMaxWidth: true,
+              htmlLabels: true,
+              curve: "basis",
+            },
+          });
+
+          // Generate the diagram
+          const graphDefinition = generateMermaidSyntax();
+          const element = document.getElementById("mermaid-diagram");
+
+          // Clear previous diagram
+          element.innerHTML = "";
+
+          // Insert the generated diagram
+          const { svg } = await mermaid.render("mermaid-svg", graphDefinition);
+          element.innerHTML = svg;
+
+          // Make nodes clickable
+          document.querySelectorAll(".node").forEach((node) => {
+            const questionId = node.id.replace("node-", "");
+            node.style.cursor = "pointer";
+            node.addEventListener("click", () => editQuestion(questionId));
+          });
+        } catch (error) {
+          console.error("Error rendering diagram:", error);
+          document.getElementById(
+            "mermaid-diagram"
+          ).innerHTML = `<div style="color:red">Error rendering diagram: ${error.message}</div>`;
+        }
+      }
+
+      // Show all questions in editable format
+      function showAllQuestions() {
+        const list = document.getElementById("questions-list");
+        list.innerHTML = "";
+
+        for (const [id, question] of Object.entries(questions)) {
+          list.innerHTML += `
+                    <div class="question-card" id="card-${id}">
+                        <h3>Question ${id}</h3>
+                        <p>${question.text}</p>
+                        <p><span class="correct-path">✓ Correct → ${
+                          question.ifCorrect || "END"
+                        }</span></p>
+                        <p><span class="wrong-path">✗ Wrong → ${
+                          question.ifWrong || "END"
+                        }</span></p>
+                        <div class="controls">
+                            <button onclick="editQuestion('${id}')">Edit</button>
+                            <button class="danger" onclick="deleteQuestion('${id}')">Delete</button>
+                        </div>
+                    </div>
+                `;
+        }
+      }
+
+      // Edit a specific question
+      function editQuestion(id) {
+        const question = questions[id];
+        if (!question) return;
+
+        const card =
+          document.getElementById(`card-${id}`) ||
+          document.createElement("div");
+        card.className = "question-card editing";
+        card.id = `card-${id}`;
+        card.innerHTML = `
+                <h3>Editing Question ${id}</h3>
+                <label>Question Text:</label>
+                <textarea id="edit-text-${id}">${question.text}</textarea>
+                
+                <label>Options:</label>
+                <div id="edit-options-${id}">
+                    ${question.options
+                      .map(
+                        (opt, i) => `
+                        <div class="option-item">
+                            <input type="radio" name="correct-${id}" ${
+                          i === question.correctIndex ? "checked" : ""
+                        } 
+                                onchange="document.getElementById('edit-correct-${id}').value = ${i}">
+                            <input type="text" value="${opt}" oninput="updateOption('${id}', ${i}, this.value)">
+                        </div>
+                    `
+                      )
+                      .join("")}
+                </div>
+                <input type="hidden" id="edit-correct-${id}" value="${
+          question.correctIndex
+        }">
+                <button class="add-option-btn" onclick="addOption('${id}')">+ Add Option</button>
+                
+                <label>If Correct, Go To:</label>
+                <select id="edit-ifCorrect-${id}">
+                    <option value="">END</option>
+                    ${Object.keys(questions)
+                      .filter((qid) => qid !== id)
+                      .map(
+                        (qid) => `
+                        <option value="${qid}" ${
+                          question.ifCorrect === qid ? "selected" : ""
+                        }>${qid}</option>
+                    `
+                      )
+                      .join("")}
+                </select>
+                
+                <label>If Wrong, Go To:</label>
+                <select id="edit-ifWrong-${id}">
+                    <option value="">END</option>
+                    ${Object.keys(questions)
+                      .filter((qid) => qid !== id)
+                      .map(
+                        (qid) => `
+                        <option value="${qid}" ${
+                          question.ifWrong === qid ? "selected" : ""
+                        }>${qid}</option>
+                    `
+                      )
+                      .join("")}
+                </select>
+                
+                <div class="controls">
+                    <button onclick="saveQuestion('${id}')">Save</button>
+                    <button class="secondary" onclick="cancelEdit('${id}')">Cancel</button>
+                    <button class="danger" onclick="deleteQuestion('${id}')">Delete</button>
+                </div>
+            `;
+
+        if (!document.getElementById(`card-${id}`)) {
+          document.getElementById("questions-list").prepend(card);
+        }
+        card.scrollIntoView({ behavior: "smooth" });
+      }
+
+      // Add a new option to a question
+      function addOption(id) {
+        const optionsContainer = document.getElementById(`edit-options-${id}`);
+        const newIndex = questions[id].options.length;
+        const optionDiv = document.createElement("div");
+        optionDiv.className = "option-item";
+        optionDiv.innerHTML = `
+                <input type="radio" name="correct-${id}" onchange="document.getElementById('edit-correct-${id}').value = ${newIndex}">
+                <input type="text" placeholder="Option text" oninput="updateOption('${id}', ${newIndex}, this.value)">
+            `;
+        optionsContainer.appendChild(optionDiv);
+        questions[id].options.push("");
+      }
+
+      // Update an option's text
+      function updateOption(id, index, value) {
+        questions[id].options[index] = value;
+      }
+
+      // Save edited question
+      function saveQuestion(id) {
+        const question = questions[id];
+        question.text = document.getElementById(`edit-text-${id}`).value;
+        question.correctIndex = parseInt(
+          document.getElementById(`edit-correct-${id}`).value
+        );
+        question.ifCorrect =
+          document.getElementById(`edit-ifCorrect-${id}`).value || null;
+        question.ifWrong =
+          document.getElementById(`edit-ifWrong-${id}`).value || null;
+
+        // Remove empty options
+        question.options = question.options.filter((opt) => opt.trim() !== "");
+
+        renderGraph();
+        showAllQuestions();
+      }
+
+      // Cancel editing
+      function cancelEdit(id) {
+        showAllQuestions();
+      }
+
+      // Delete a question
+      function deleteQuestion(id) {
+        if (
+          confirm(
+            `Delete question ${id}? This will remove all references to it.`
+          )
+        ) {
+          delete questions[id];
+          // Remove references to this question in other questions
+          for (const qid in questions) {
+            if (questions[qid].ifCorrect === id)
+              questions[qid].ifCorrect = null;
+            if (questions[qid].ifWrong === id) questions[qid].ifWrong = null;
+          }
+          renderGraph();
+          showAllQuestions();
+        }
+      }
+
+      // Add a new question
+      function addNewQuestion() {
+        const newId = "q" + (Object.keys(questions).length + 1);
+        questions[newId] = {
+          text: "New question",
+          options: ["Option 1", "Option 2"],
+          correctIndex: 0,
+          ifCorrect: null,
+          ifWrong: null,
+        };
+        editQuestion(newId);
+      }
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", () => {
+        renderGraph();
+        showAllQuestions();
+
+        document
+          .getElementById("refresh-btn")
+          .addEventListener("click", renderGraph);
+        document
+          .getElementById("add-question-btn")
+          .addEventListener("click", addNewQuestion);
+      });
+
+      function copyQuizToClipboard() {
+        // Format the questions object as a string
+        let quizString = "";
+        for (const [id, question] of Object.entries(questions)) {
+          quizString += `${id}: ${JSON.stringify(question, null, 4)},\n`;
+        }
+
+        // Remove the last comma and newline
+        quizString = quizString.slice(0, -2);
+
+        // Create a temporary textarea to copy from
+        const textarea = document.createElement("textarea");
+        textarea.value = quizString;
+        document.body.appendChild(textarea);
+        textarea.select();
+
+        try {
+          // Copy the text
+          document.execCommand("copy");
+          alert("Quiz data copied to clipboard!");
+        } catch (err) {
+          console.error("Failed to copy:", err);
+          alert("Failed to copy quiz data");
+        } finally {
+          // Clean up
+          document.body.removeChild(textarea);
+        }
+      }
+
+      document
+        .getElementById("upload-btn")
+        .addEventListener("click", async () => {
+          const quizName = document.getElementById("quiz-name").value.trim();
+          const statusElement = document.getElementById("status-message");
+
+          if (!quizName) {
+            showStatus("Please enter a quiz name", "status-error");
+            return;
+          }
+
+          try {
+            showStatus("Uploading quiz...", "status-info");
+
+            // Create a clean quiz data object
+            const quizDataToUpload = {};
+            for (const [id, question] of Object.entries(questions)) {
+              quizDataToUpload[id] = question;
+            }
+
+            // Generate a document ID from the quiz name
+            const docId = quizName.toLowerCase().replace(/\s+/g, "-");
+
+            // Upload to Firestore
+            await db.collection("quizIntel").doc(docId).set({
+              name: quizName,
+              questions: quizDataToUpload,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            });
+
+            showStatus("Quiz uploaded successfully!", "status-success");
+          } catch (error) {
+            console.error("Error uploading quiz:", error);
+            showStatus(
+              `Error uploading quiz: ${error.message}`,
+              "status-error"
+            );
+          }
+        });
+
+      // Helper function to show status messages
+      function showStatus(message, className) {
+        const statusElement = document.getElementById("status-message");
+        statusElement.textContent = message;
+        statusElement.className = className;
+        statusElement.style.display = "block";
+
+        // Hide after 5 seconds
+        setTimeout(() => {
+          statusElement.style.display = "none";
+        }, 5000);
+      }
+
+      // Add this event listener to your initialization
+      document
+        .getElementById("copy-quiz-btn")
+        .addEventListener("click", copyQuizToClipboard);
+    </script>
+  </body>
+</html>
