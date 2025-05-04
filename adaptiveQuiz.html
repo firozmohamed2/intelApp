@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Adaptive Quiz Loader</title>
+    <style>
+      :root {
+        --primary: #4361ee;
+        --correct: #4cc9f0;
+        --incorrect: #f72585;
+        --bg: #f8f9fa;
+      }
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background: var(--bg);
+        padding: 20px;
+        line-height: 1.6;
+      }
+      .quiz-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      .question {
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 20px;
+      }
+      .options {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .option {
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .option:hover {
+        background: #f5f5f5;
+      }
+      .feedback {
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: none;
+      }
+      .correct {
+        background: rgba(76, 201, 240, 0.1);
+        border-color: var(--correct);
+      }
+      .incorrect {
+        background: rgba(247, 37, 133, 0.1);
+        border-color: var(--incorrect);
+      }
+      .next-btn {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        display: none;
+      }
+      .loading {
+        text-align: center;
+        padding: 20px;
+      }
+      .error {
+        color: var(--incorrect);
+        text-align: center;
+        padding: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="quiz-container">
+      <div id="quiz-content">
+        <div class="loading" id="loading-message">Loading quiz...</div>
+        <div class="error" id="error-message" style="display: none"></div>
+        <div id="quiz-questions" style="display: none">
+          <div class="question" id="question-text"></div>
+          <div class="options" id="options-container"></div>
+          <div class="feedback" id="feedback"></div>
+          <button class="next-btn" id="next-btn">Continue</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script>
+      // Firebase configuration
+      const firebaseConfig = {
+        apiKey: "AIzaSyA88fPkOvcI4QA9qD3ROpk-ay-V6ibQQlc",
+        authDomain: "my-application-7fd40.firebaseapp.com",
+        projectId: "my-application-7fd40",
+        storageBucket: "my-application-7fd40.appspot.com",
+        messagingSenderId: "269589994279",
+        appId: "1:269589994279:web:4c617a622c328a1224e702",
+        measurementId: "G-D8MD1J28GR",
+      };
+
+      // Initialize Firebase
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+
+      // DOM elements
+      const questionText = document.getElementById("question-text");
+      const optionsContainer = document.getElementById("options-container");
+      const feedback = document.getElementById("feedback");
+      const nextBtn = document.getElementById("next-btn");
+      const loadingMessage = document.getElementById("loading-message");
+      const errorMessage = document.getElementById("error-message");
+      const quizQuestions = document.getElementById("quiz-questions");
+
+      // Quiz state
+      let currentQuestionId = "q1";
+      let score = 0;
+      let questions = {};
+
+      // Get document ID from URL
+      function getDocIdFromUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get("docid");
+      }
+
+      // Load quiz from Firestore based on URL parameter
+      async function loadQuizFromUrl() {
+        const docId = getDocIdFromUrl();
+
+        if (!docId) {
+          showError(
+            "No quiz ID provided in URL. Please add ?docid=YOUR_QUIZ_ID to the URL"
+          );
+          return;
+        }
+
+        try {
+          const doc = await db.collection("quizIntel").doc(docId).get();
+
+          if (!doc.exists) {
+            showError("Quiz not found. Please check the ID and try again.");
+            return;
+          }
+
+          // Hide loading, show quiz
+          loadingMessage.style.display = "none";
+          quizQuestions.style.display = "block";
+
+          // Load the quiz data
+          questions = doc.data().questions;
+          currentQuestionId = Object.keys(questions)[0]; // Get first question ID
+          score = 0;
+          loadQuestion(currentQuestionId);
+        } catch (error) {
+          console.error("Error loading quiz:", error);
+          showError("Error loading quiz: " + error.message);
+        }
+      }
+
+      // Show error message
+      function showError(message) {
+        loadingMessage.style.display = "none";
+        errorMessage.textContent = message;
+        errorMessage.style.display = "block";
+      }
+
+      // Load question
+      function loadQuestion(id) {
+        const q = questions[id];
+        if (!q) {
+          questionText.textContent = "Quiz completed!";
+          optionsContainer.innerHTML = "";
+          feedback.textContent = `Final score: ${score}`;
+          feedback.style.display = "block";
+          nextBtn.style.display = "none";
+          return;
+        }
+
+        currentQuestionId = id;
+        questionText.textContent = q.text;
+        optionsContainer.innerHTML = "";
+        feedback.style.display = "none";
+        nextBtn.style.display = "none";
+
+        q.options.forEach((option, index) => {
+          const opt = document.createElement("div");
+          opt.className = "option";
+          opt.textContent = option;
+          opt.addEventListener("click", () => selectOption(opt, index, q));
+          optionsContainer.appendChild(opt);
+        });
+      }
+
+      // Handle option selection
+      function selectOption(option, selectedIndex, question) {
+        document.querySelectorAll(".option").forEach((opt) => {
+          opt.style.pointerEvents = "none";
+        });
+
+        const isCorrect = selectedIndex === question.correctIndex;
+
+        document.querySelectorAll(".option").forEach((opt, index) => {
+          if (index === question.correctIndex) opt.classList.add("correct");
+          if (index === selectedIndex && !isCorrect)
+            opt.classList.add("incorrect");
+        });
+
+        feedback.textContent = question.explanation;
+        feedback.className = isCorrect
+          ? "feedback correct"
+          : "feedback incorrect";
+        feedback.style.display = "block";
+        nextBtn.style.display = "block";
+
+        nextBtn.onclick = () => {
+          const nextQuestionId = isCorrect
+            ? question.ifCorrect
+            : question.ifWrong;
+          loadQuestion(nextQuestionId);
+        };
+
+        if (isCorrect) score++;
+      }
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", loadQuizFromUrl);
+    </script>
+  </body>
+</html>
